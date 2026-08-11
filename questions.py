@@ -16,6 +16,3 @@ def load_questions(folder="quiz-questions") -> dict[str, str]:
             elif label.lower() == "ответ" and current_question:
                 bank[current_question] = section.split("\n", 1)[1].strip()
     return bank
-
-
-print(len(load_questions()))

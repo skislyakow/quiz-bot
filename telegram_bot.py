@@ -1,5 +1,6 @@
 import asyncio
 import os
+import random
 
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import CommandStart
@@ -8,6 +9,9 @@ from aiogram.types import ReplyKeyboardMarkup
 from aiogram.types import KeyboardButton
 from dotenv import load_dotenv
 
+from questions import load_questions
+
+QUESTIONS = load_questions()
 
 router = Router()
 
@@ -29,7 +33,8 @@ async def handle_start(message: Message):
 
 @router.message(F.text == "Новый вопрос")
 async def handle_new_question(message: Message):
-    await message.answer("Пока здесь будет вопрос")
+    question = random.choice(list(QUESTIONS))
+    await message.answer(question)
 
 
 @router.message(F.text == "Сдаться")
