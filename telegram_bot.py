@@ -53,7 +53,18 @@ async def handle_new_question(message: Message):
 
 @router.message(F.text == "Сдаться")
 async def handle_surrender(message: Message):
-    await message.answer("Вы сдались")
+    if message.from_user is None:
+        return
+
+    question = await redis_client.get(f"quiz:{message.from_user.id}")
+    if question is None:
+        await message.answer("Активного вопроса нет - нажми 'Новый вопрос'")
+        return
+    if isinstance(question, bytes):
+        question = question.decode()
+
+    answer = QUESTIONS.get(question)
+    await message.answer(f"Правильный ответ: {answer}")
 
 
 @router.message(F.text == "Мой счёт")
