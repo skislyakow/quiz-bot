@@ -10,6 +10,7 @@ from aiogram.types import ReplyKeyboardMarkup
 from aiogram.types import KeyboardButton
 from dotenv import load_dotenv, dotenv_values
 
+from answer_utils import normalize_answer
 from questions import load_questions
 
 _config = dotenv_values(".env")
@@ -36,6 +37,12 @@ menu = ReplyKeyboardMarkup(
 )
 
 
+def _to_str(value: bytes | str | None) -> str | None:
+    if value is None:
+        return None
+    return value.decode() if isinstance(value, bytes) else value
+
+
 @router.message(CommandStart())
 async def handle_start(message: Message):
     await message.answer("Здравствуйте", reply_markup=menu)
@@ -56,12 +63,10 @@ async def handle_surrender(message: Message):
     if message.from_user is None:
         return
 
-    question = await redis_client.get(f"quiz:{message.from_user.id}")
+    question = _to_str(await redis_client.get(f"quiz:{message.from_user.id}"))
     if question is None:
         await message.answer("Активного вопроса нет - нажми 'Новый вопрос'")
         return
-    if isinstance(question, bytes):
-        question = question.decode()
 
     answer = QUESTIONS.get(question)
     await message.answer(f"Правильный ответ: {answer}")
@@ -73,9 +78,26 @@ async def handle_score(message: Message):
 
 
 @router.message()
-async def handle_echo(message: Message):
-    if message.text:
-        await message.answer(message.text)
+async def handle_answer(message: Message):
+    if message.from_user is None or not message.text:
+        return
+
+    question = _to_str(await redis_client.get(f"quiz:{message.from_user.id}"))
+    if question is None:
+        await message.answer("Активного вопроса нет. Нажми 'Новый вопрос'")
+        return
+
+    correct = QUESTIONS.get(question)
+    if correct is None:
+        await message.answer("Не знаю такого вопроса. Нажми 'Новый вопрос'")
+        return
+
+    if normalize_answer(correct) == normalize_answer(message.text):
+        await message.answer(
+            "Правильно! Поздравляю! Для следующего вопроса нажми 'Новый вопрос'"
+        )
+    else:
+        await message.answer("Неправильно... Попробуешь еще раз?")
 
 
 async def main():
