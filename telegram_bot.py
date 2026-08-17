@@ -70,6 +70,7 @@ async def handle_surrender(message: Message):
 
     answer = QUESTIONS.get(question)
     await message.answer(f"Правильный ответ: {answer}")
+    await redis_client.delete(f"quiz:{message.from_user.id}")
 
 
 @router.message(F.text == "Мой счёт")
@@ -92,7 +93,12 @@ async def handle_answer(message: Message):
         await message.answer("Не знаю такого вопроса. Нажми 'Новый вопрос'")
         return
 
-    if normalize_answer(correct) == normalize_answer(message.text):
+    normalizing_user_answer = normalize_answer(message.text)
+    normalizing_correct_answer = normalize_answer(correct)
+    if normalizing_user_answer == normalizing_correct_answer or (
+        len(normalizing_user_answer) >= 3
+        and normalizing_user_answer in normalizing_correct_answer
+    ):
         await message.answer(
             "Правильно! Поздравляю! Для следующего вопроса нажми 'Новый вопрос'"
         )
