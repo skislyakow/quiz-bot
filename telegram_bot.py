@@ -16,6 +16,7 @@ from dotenv import load_dotenv, dotenv_values
 from answer_utils import normalize_answer
 from questions import load_questions
 
+
 _config = dotenv_values(".env")
 
 redis_client = aioredis.Redis(
@@ -69,8 +70,8 @@ async def handle_surrender(message: Message, state: FSMContext):
     if question is None:
         await message.answer("Активного вопроса нет - нажми 'Новый вопрос'")
         return
-    answer = QUESTIONS.get(question)
-    await message.answer(f"Правильный ответ: {answer}")
+    correct_answer = QUESTIONS.get(question)
+    await message.answer(f"Правильный ответ: {correct_answer}")
     await send_new_question(message, state)
 
 
@@ -85,15 +86,16 @@ async def handle_solution_attempt(message: Message, state: FSMContext):
         return
     data = await state.get_data()
     question = data.get("question")
-    correct = QUESTIONS.get(question) if question is not None else None
-    if correct is None:
+    correct_answer = QUESTIONS.get(question) if question is not None else None
+    if correct_answer is None:
         await message.answer("Не знаю такого вопроса. Нажми 'Новый вопрос'")
         await state.set_state(GameState.waiting_for_question)
         return
-    norm_user = normalize_answer(message.text)
-    norm_correct = normalize_answer(correct)
-    if norm_user == norm_correct or (
-        len(norm_user) >= 3 and norm_user in norm_correct
+    normalized_user_answer = normalize_answer(message.text)
+    normalized_correct_answer = normalize_answer(correct_answer)
+    if normalized_user_answer == normalized_correct_answer or (
+        len(normalized_user_answer) >= 3
+        and normalized_user_answer in normalized_correct_answer
     ):
         await message.answer(
             "Правильно! Поздравляю! Для следующего вопроса нажми 'Новый вопрос'"

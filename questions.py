@@ -10,7 +10,7 @@ def _strip_handout(text: str) -> str:
 
 
 def load_questions(folder="quiz-questions") -> dict[str, str]:
-    bank = {}
+    questions = {}
     for path in pathlib.Path(folder).glob("*.txt"):
         with open(path, encoding="koi8-r") as f:
             text = f.read()
@@ -21,5 +21,5 @@ def load_questions(folder="quiz-questions") -> dict[str, str]:
             if re.match(r"^Вопрос\s*\d", label, re.I):
                 current_question = _strip_handout(section.split("\n", 1)[1])
             elif label.lower() == "ответ" and current_question:
-                bank[current_question] = section.split("\n", 1)[1].strip()
-    return bank
+                questions[current_question] = section.split("\n", 1)[1].strip()
+    return questions
