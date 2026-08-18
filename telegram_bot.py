@@ -44,6 +44,13 @@ class GameState(StatesGroup):
     answering = State()
 
 
+async def send_new_question(message: Message, state: FSMContext) -> None:
+    question = random.choice(list(QUESTIONS))
+    await state.update_data(question=question)
+    await state.set_state(GameState.answering)
+    await message.answer(question)
+
+
 @router.message(CommandStart())
 async def handle_start(message: Message, state: FSMContext):
     await state.set_state(GameState.waiting_for_question)
@@ -52,10 +59,7 @@ async def handle_start(message: Message, state: FSMContext):
 
 @router.message(F.text == "Новый вопрос")
 async def handle_new_question_request(message: Message, state: FSMContext):
-    question = random.choice(list(QUESTIONS))
-    await state.update_data(question=question)
-    await state.set_state(GameState.answering)
-    await message.answer(question)
+    await send_new_question(message, state)
 
 
 @router.message(F.text == "Сдаться")
@@ -67,7 +71,7 @@ async def handle_surrender(message: Message, state: FSMContext):
         return
     answer = QUESTIONS.get(question)
     await message.answer(f"Правильный ответ: {answer}")
-    await state.set_state(GameState.waiting_for_question)
+    await send_new_question(message, state)
 
 
 @router.message(F.text == "Мой счёт")
