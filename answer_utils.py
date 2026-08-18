@@ -1,6 +1,6 @@
 import re
 
-import pymorphy3
+import pymorphy3  # type: ignore[import-untyped]
 
 
 morph = pymorphy3.MorphAnalyzer()

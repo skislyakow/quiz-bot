@@ -5,6 +5,9 @@ import random
 import redis.asyncio as aioredis
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import CommandStart
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import StatesGroup, State
+from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import Message
 from aiogram.types import ReplyKeyboardMarkup
 from aiogram.types import KeyboardButton
@@ -19,7 +22,6 @@ redis_client = aioredis.Redis(
     host=_config.get("REDIS_HOST") or "127.0.0.1",
     port=int(_config.get("REDIS_PORT") or "6379"),
     password=_config.get("REDIS_PASSWORD") or None,
-    decode_responses=True,
 )
 
 QUESTIONS = load_questions()
@@ -37,40 +39,35 @@ menu = ReplyKeyboardMarkup(
 )
 
 
-def _to_str(value: bytes | str | None) -> str | None:
-    if value is None:
-        return None
-    return value.decode() if isinstance(value, bytes) else value
+class GameState(StatesGroup):
+    waiting_for_question = State()
+    answering = State()
 
 
 @router.message(CommandStart())
-async def handle_start(message: Message):
+async def handle_start(message: Message, state: FSMContext):
+    await state.set_state(GameState.waiting_for_question)
     await message.answer("Здравствуйте", reply_markup=menu)
 
 
 @router.message(F.text == "Новый вопрос")
-async def handle_new_question(message: Message):
-    if message.from_user is None:
-        return
-
+async def handle_new_question_request(message: Message, state: FSMContext):
     question = random.choice(list(QUESTIONS))
-    await redis_client.set(f"quiz:{message.from_user.id}", question)
+    await state.update_data(question=question)
+    await state.set_state(GameState.answering)
     await message.answer(question)
 
 
 @router.message(F.text == "Сдаться")
-async def handle_surrender(message: Message):
-    if message.from_user is None:
-        return
-
-    question = _to_str(await redis_client.get(f"quiz:{message.from_user.id}"))
+async def handle_surrender(message: Message, state: FSMContext):
+    data = await state.get_data()
+    question = data.get("question")
     if question is None:
         await message.answer("Активного вопроса нет - нажми 'Новый вопрос'")
         return
-
     answer = QUESTIONS.get(question)
     await message.answer(f"Правильный ответ: {answer}")
-    await redis_client.delete(f"quiz:{message.from_user.id}")
+    await state.set_state(GameState.waiting_for_question)
 
 
 @router.message(F.text == "Мой счёт")
@@ -78,32 +75,33 @@ async def handle_score(message: Message):
     await message.answer("Ваш счёт: 0")
 
 
-@router.message()
-async def handle_answer(message: Message):
-    if message.from_user is None or not message.text:
+@router.message(GameState.answering)
+async def handle_solution_attempt(message: Message, state: FSMContext):
+    if not message.text:
         return
-
-    question = _to_str(await redis_client.get(f"quiz:{message.from_user.id}"))
-    if question is None:
-        await message.answer("Активного вопроса нет. Нажми 'Новый вопрос'")
-        return
-
-    correct = QUESTIONS.get(question)
+    data = await state.get_data()
+    question = data.get("question")
+    correct = QUESTIONS.get(question) if question is not None else None
     if correct is None:
         await message.answer("Не знаю такого вопроса. Нажми 'Новый вопрос'")
+        await state.set_state(GameState.waiting_for_question)
         return
-
-    normalizing_user_answer = normalize_answer(message.text)
-    normalizing_correct_answer = normalize_answer(correct)
-    if normalizing_user_answer == normalizing_correct_answer or (
-        len(normalizing_user_answer) >= 3
-        and normalizing_user_answer in normalizing_correct_answer
+    norm_user = normalize_answer(message.text)
+    norm_correct = normalize_answer(correct)
+    if norm_user == norm_correct or (
+        len(norm_user) >= 3 and norm_user in norm_correct
     ):
         await message.answer(
             "Правильно! Поздравляю! Для следующего вопроса нажми 'Новый вопрос'"
         )
+        await state.set_state(GameState.waiting_for_question)
     else:
         await message.answer("Неправильно... Попробуешь еще раз?")
+
+
+@router.message(GameState.waiting_for_question)
+async def handle_waiting(message: Message):
+    await message.answer("Активного вопроса нет. Нажми 'Новый вопрос'")
 
 
 async def main():
@@ -114,7 +112,7 @@ async def main():
         raise ValueError("TELEGRAM_BOT_TOKEN не задан в .env")
 
     bot = Bot(token=token)
-    dp = Dispatcher()
+    dp = Dispatcher(storage=RedisStorage(redis_client))
     dp.include_router(router)
 
     await dp.start_polling(bot)
