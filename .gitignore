@@ -4,3 +4,5 @@ quiz-questions/
 *.pyc
 *.log
 .vkbottle/
+.questions_cache.pkl
+.questions_cache.pkl.tmp
