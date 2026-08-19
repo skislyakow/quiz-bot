@@ -1,26 +1,19 @@
 import asyncio
 import os
-import random
 
-import redis.asyncio as aioredis
 from vkbottle.bot import Bot
 from vkbottle.tools import Keyboard, Text
-from dotenv import load_dotenv, dotenv_values
+from dotenv import load_dotenv
 
 from answer_utils import evaluate_answer
-from questions import load_questions
+from db import create_redis_client
+from questions import load_questions, random_question
 
-
-_config = dotenv_values(".env")
-
-redis_client = aioredis.Redis(
-    host=_config.get("REDIS_HOST") or "127.0.0.1",
-    port=int(_config.get("REDIS_PORT") or "6379"),
-    password=_config.get("REDIS_PASSWORD") or None,
-    decode_responses=True,
-)
 
 QUESTIONS = load_questions()
+QUESTION_TTL = 3600
+
+redis_client = create_redis_client(decode_responses=True)
 
 
 def vk_key(uid: int) -> str:
@@ -46,8 +39,10 @@ async def main():
 
     @bot.on.message(text="Новый вопрос")
     async def new_question(message):
-        question = random.choice(list(QUESTIONS))
-        await redis_client.set(vk_key(message.peer_id), question)
+        question = random_question()
+        await redis_client.set(
+            vk_key(message.peer_id), question, ex=QUESTION_TTL
+        )
         await message.answer(question, keyboard=kb)
 
     @bot.on.message(text="Сдаться")
@@ -65,9 +60,11 @@ async def main():
             )
         await message.answer(f"Правильный ответ: {QUESTIONS[question]}")
         await redis_client.delete(vk_key(message.peer_id))
-        new_question = random.choice(list(QUESTIONS))
-        await redis_client.set(vk_key(message.peer_id), new_question)
-        await message.answer(new_question, keyboard=kb)
+        next_question = random_question()
+        await redis_client.set(
+            vk_key(message.peer_id), next_question, ex=QUESTION_TTL
+        )
+        await message.answer(next_question, keyboard=kb)
 
     @bot.on.message(text="Мой счёт")
     async def score(message):

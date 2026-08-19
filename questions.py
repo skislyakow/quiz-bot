@@ -1,5 +1,8 @@
 import pathlib
+import random
 import re
+
+_question_keys: list[str] = []
 
 
 def _strip_handout(text: str) -> str:
@@ -22,4 +25,9 @@ def load_questions(folder="quiz-questions") -> dict[str, str]:
                 current_question = _strip_handout(section.split("\n", 1)[1])
             elif label.lower() == "ответ" and current_question:
                 questions[current_question] = section.split("\n", 1)[1].strip()
+    _question_keys[:] = list(questions)
     return questions
+
+
+def random_question() -> str:
+    return random.choice(_question_keys)

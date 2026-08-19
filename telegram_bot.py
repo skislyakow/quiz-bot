@@ -1,8 +1,6 @@
 import asyncio
 import os
-import random
 
-import redis.asyncio as aioredis
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
@@ -11,22 +9,16 @@ from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import Message
 from aiogram.types import ReplyKeyboardMarkup
 from aiogram.types import KeyboardButton
-from dotenv import load_dotenv, dotenv_values
+from dotenv import load_dotenv
 
 from answer_utils import evaluate_answer
-from questions import load_questions
+from db import create_redis_client
+from questions import load_questions, random_question
 
-
-_config = dotenv_values(".env")
-
-redis_client = aioredis.Redis(
-    host=_config.get("REDIS_HOST") or "127.0.0.1",
-    port=int(_config.get("REDIS_PORT") or "6379"),
-    password=_config.get("REDIS_PASSWORD") or None,
-)
 
 QUESTIONS = load_questions()
 
+redis_client = create_redis_client()
 router = Router()
 
 menu = ReplyKeyboardMarkup(
@@ -46,7 +38,7 @@ class GameState(StatesGroup):
 
 
 async def send_new_question(message: Message, state: FSMContext) -> None:
-    question = random.choice(list(QUESTIONS))
+    question = random_question()
     await state.update_data(question=question)
     await state.set_state(GameState.answering)
     await message.answer(question)
