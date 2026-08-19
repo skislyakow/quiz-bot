@@ -7,6 +7,12 @@ from dotenv import load_dotenv
 
 from answer_utils import evaluate_answer
 from db import create_redis_client
+from messages import (
+    NO_ACTIVE_QUESTION,
+    GREETING_NO_QUESTION,
+    SCORE_ZERO,
+    correct_answer_message,
+)
 from questions import load_questions, random_question
 
 
@@ -59,10 +65,10 @@ async def main():
         question = await get_active_question(message.peer_id)
         if question is None:
             return await message.answer(
-                "Активного вопроса нет - нажми 'Новый вопрос'",
+                NO_ACTIVE_QUESTION,
                 keyboard=kb,
             )
-        await message.answer(f"Правильный ответ: {QUESTIONS[question]}")
+        await message.answer(correct_answer_message(QUESTIONS[question]))
         await redis_client.delete(vk_key(message.peer_id))
         next_question = random_question()
         await redis_client.set(
@@ -72,14 +78,14 @@ async def main():
 
     @bot.on.message(text="Мой счёт")
     async def score(message):
-        await message.answer("Ваш счёт: 0", keyboard=kb)
+        await message.answer(SCORE_ZERO, keyboard=kb)
 
     @bot.on.message()
     async def attempt(message):
         question = await get_active_question(message.peer_id)
         if question is None:
             return await message.answer(
-                "Здравствуйте! Активного вопроса нет. Нажмите 'Новый вопрос'",
+                GREETING_NO_QUESTION,
                 keyboard=kb,
             )
         is_correct, text = evaluate_answer(message.text, QUESTIONS[question])

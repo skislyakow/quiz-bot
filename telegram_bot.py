@@ -13,6 +13,12 @@ from dotenv import load_dotenv
 
 from answer_utils import evaluate_answer
 from db import create_redis_client
+from messages import (
+    NO_ACTIVE_QUESTION,
+    UNKNOWN_QUESTION,
+    SCORE_ZERO,
+    correct_answer_message,
+)
 from questions import load_questions, random_question
 
 
@@ -60,16 +66,16 @@ async def handle_surrender(message: Message, state: FSMContext):
     data = await state.get_data()
     question = data.get("question")
     if question is None:
-        await message.answer("Активного вопроса нет - нажми 'Новый вопрос'")
+        await message.answer(NO_ACTIVE_QUESTION)
         return
     correct_answer = QUESTIONS.get(question)
-    await message.answer(f"Правильный ответ: {correct_answer}")
+    await message.answer(correct_answer_message(correct_answer))
     await send_new_question(message, state)
 
 
 @router.message(F.text == "Мой счёт")
 async def handle_score(message: Message):
-    await message.answer("Ваш счёт: 0")
+    await message.answer(SCORE_ZERO)
 
 
 @router.message(GameState.answering)
@@ -80,7 +86,7 @@ async def handle_solution_attempt(message: Message, state: FSMContext):
     question = data.get("question")
     correct_answer = QUESTIONS.get(question) if question is not None else None
     if correct_answer is None:
-        await message.answer("Не знаю такого вопроса. Нажми 'Новый вопрос'")
+        await message.answer(UNKNOWN_QUESTION)
         await state.set_state(GameState.waiting_for_question)
         return
     is_correct, text = evaluate_answer(message.text, correct_answer)
@@ -91,7 +97,7 @@ async def handle_solution_attempt(message: Message, state: FSMContext):
 
 @router.message(GameState.waiting_for_question)
 async def handle_waiting(message: Message):
-    await message.answer("Активного вопроса нет. Нажми 'Новый вопрос'")
+    await message.answer(NO_ACTIVE_QUESTION)
 
 
 async def main():
