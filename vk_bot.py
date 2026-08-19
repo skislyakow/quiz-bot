@@ -20,6 +20,15 @@ def vk_key(uid: int) -> str:
     return f"vk_quiz:{uid}"
 
 
+async def get_active_question(peer_id: int) -> str | None:
+    raw_question = await redis_client.get(vk_key(peer_id))
+    return (
+        raw_question.decode()
+        if isinstance(raw_question, bytes)
+        else raw_question
+    )
+
+
 async def main():
     load_dotenv()
     token = os.getenv("VK_GROUP_TOKEN")
@@ -47,12 +56,7 @@ async def main():
 
     @bot.on.message(text="Сдаться")
     async def surrender(message):
-        raw_question = await redis_client.get(vk_key(message.peer_id))
-        question = (
-            raw_question.decode()
-            if isinstance(raw_question, bytes)
-            else raw_question
-        )
+        question = await get_active_question(message.peer_id)
         if question is None:
             return await message.answer(
                 "Активного вопроса нет - нажми 'Новый вопрос'",
@@ -72,12 +76,7 @@ async def main():
 
     @bot.on.message()
     async def attempt(message):
-        raw_question = await redis_client.get(vk_key(message.peer_id))
-        question = (
-            raw_question.decode()
-            if isinstance(raw_question, bytes)
-            else raw_question
-        )
+        question = await get_active_question(message.peer_id)
         if question is None:
             return await message.answer(
                 "Здравствуйте! Активного вопроса нет. Нажмите 'Новый вопрос'",
