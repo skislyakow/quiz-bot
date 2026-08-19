@@ -25,3 +25,17 @@ def normalize_answer(text: str) -> str:
         else:
             lemmatized_tokens.append(token)
     return " ".join(lemmatized_tokens)
+
+
+def evaluate_answer(user_text: str, correct_text: str) -> tuple[bool, str]:
+    normalized_user_answer = normalize_answer(user_text)
+    normalized_correct_answer = normalize_answer(correct_text)
+    if normalized_user_answer == normalized_correct_answer or (
+        len(normalized_user_answer) >= 3
+        and normalized_user_answer in normalized_correct_answer  # noqa: W503
+    ):
+        return (
+            True,
+            "Правильно! Поздравляю! Для следующего вопроса нажми 'Новый вопрос'",
+        )
+    return False, "Неправильно... Попробуешь еще раз?"

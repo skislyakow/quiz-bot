@@ -13,7 +13,7 @@ from aiogram.types import ReplyKeyboardMarkup
 from aiogram.types import KeyboardButton
 from dotenv import load_dotenv, dotenv_values
 
-from answer_utils import normalize_answer
+from answer_utils import evaluate_answer
 from questions import load_questions
 
 
@@ -91,18 +91,10 @@ async def handle_solution_attempt(message: Message, state: FSMContext):
         await message.answer("Не знаю такого вопроса. Нажми 'Новый вопрос'")
         await state.set_state(GameState.waiting_for_question)
         return
-    normalized_user_answer = normalize_answer(message.text)
-    normalized_correct_answer = normalize_answer(correct_answer)
-    if normalized_user_answer == normalized_correct_answer or (
-        len(normalized_user_answer) >= 3
-        and normalized_user_answer in normalized_correct_answer
-    ):
-        await message.answer(
-            "Правильно! Поздравляю! Для следующего вопроса нажми 'Новый вопрос'"
-        )
+    is_correct, text = evaluate_answer(message.text, correct_answer)
+    await message.answer(text)
+    if is_correct:
         await state.set_state(GameState.waiting_for_question)
-    else:
-        await message.answer("Неправильно... Попробуешь еще раз?")
 
 
 @router.message(GameState.waiting_for_question)

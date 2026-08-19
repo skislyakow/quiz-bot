@@ -2,3 +2,4 @@ aiogram
 python-dotenv
 redis
 pymorphy3
+vkbottle
