@@ -38,7 +38,9 @@ async def main():
     kb = (
         Keyboard(inline=False)
         .add(Text("Новый вопрос"))
+        .row()
         .add(Text("Сдаться"))
+        .row()
         .add(Text("Мой счёт"))
     )
 
@@ -58,7 +60,8 @@ async def main():
         )
         if question is None:
             return await message.answer(
-                "Активного вопроса нет - нажми 'Новый вопрос'"
+                "Активного вопроса нет - нажми 'Новый вопрос'",
+                keyboard=kb,
             )
         await message.answer(f"Правильный ответ: {QUESTIONS[question]}")
         await redis_client.delete(vk_key(message.peer_id))
@@ -80,7 +83,8 @@ async def main():
         )
         if question is None:
             return await message.answer(
-                "Активного вопроса нет. Нажми 'Новый вопрос'"
+                "Здравствуйте! Активного вопроса нет. Нажмите 'Новый вопрос'",
+                keyboard=kb,
             )
         is_correct, text = evaluate_answer(message.text, QUESTIONS[question])
         await message.answer(text, keyboard=kb)
