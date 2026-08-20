@@ -38,6 +38,20 @@ def evaluate_answer(user_text: str, correct_text: str) -> tuple[bool, str]:
     ):
         return (
             True,
-            "Правильно! Поздравляю! Для следующего вопроса нажми 'Новый вопрос'",
+            "Правильно! Поздравляю! Для следующего вопроса нажми "
+            "'Новый вопрос'",
         )
     return False, "Неправильно... Попробуешь еще раз?"
+
+
+def mask_answer_in_explanation(explanation: str, correct_text: str) -> str:
+    phrase = correct_text.strip()
+    for separator in (".", "(", "\n"):
+        idx = phrase.find(separator)
+        if idx != -1:
+            phrase = phrase[:idx]
+    phrase = phrase.strip()
+    if not phrase:
+        return explanation
+    pattern = re.compile(r"\b" + re.escape(phrase) + r"\b", re.IGNORECASE)
+    return pattern.sub("…", explanation)

@@ -12,7 +12,7 @@ from aiogram.types import ReplyKeyboardMarkup
 from aiogram.types import KeyboardButton
 from dotenv import load_dotenv
 
-from answer_utils import evaluate_answer
+from answer_utils import evaluate_answer, mask_answer_in_explanation
 from db import create_redis_client
 from messages import (
     NO_ACTIVE_QUESTION,
@@ -125,7 +125,10 @@ async def main():
             if not state_data.get("hinted"):
                 comment = comments.get(question)
                 if comment:
-                    feedback = f"{feedback}\n\n{explanation_message(comment)}"
+                    masked = mask_answer_in_explanation(
+                        comment, correct_answer
+                    )
+                    feedback = f"{feedback}\n\n{explanation_message(masked)}"
                 await state.update_data(hinted=True)
             await message.answer(feedback)
 

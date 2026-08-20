@@ -6,7 +6,7 @@ from vkbottle.bot import Bot
 from vkbottle.tools import Keyboard, Text
 from dotenv import load_dotenv
 
-from answer_utils import evaluate_answer
+from answer_utils import evaluate_answer, mask_answer_in_explanation
 from db import create_redis_client
 from messages import (
     NO_ACTIVE_QUESTION,
@@ -123,7 +123,10 @@ async def main():
             if await redis_client.get(vk_hint_key(message.peer_id)) is None:
                 comment = comments.get(question)
                 if comment:
-                    feedback = f"{feedback}\n\n{explanation_message(comment)}"
+                    masked = mask_answer_in_explanation(
+                        comment, questions[question]
+                    )
+                    feedback = f"{feedback}\n\n{explanation_message(masked)}"
                 await redis_client.set(
                     vk_hint_key(message.peer_id), "1", ex=QUESTION_TTL
                 )
