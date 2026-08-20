@@ -16,6 +16,7 @@ from db import create_redis_client
 from messages import (
     NO_ACTIVE_QUESTION,
     UNKNOWN_QUESTION,
+    GREETING_NO_QUESTION,
     SCORE_ZERO,
     correct_answer_message,
 )
@@ -53,7 +54,7 @@ async def send_new_question(message: Message, state: FSMContext) -> None:
 @router.message(CommandStart())
 async def handle_start(message: Message, state: FSMContext):
     await state.set_state(GameState.waiting_for_question)
-    await message.answer("Здравствуйте", reply_markup=menu)
+    await message.answer(GREETING_NO_QUESTION, reply_markup=menu)
 
 
 @router.message(F.text == "Новый вопрос")
@@ -68,7 +69,7 @@ async def handle_surrender(message: Message, state: FSMContext):
     if question is None:
         await message.answer(NO_ACTIVE_QUESTION)
         return
-    correct_answer = QUESTIONS.get(question)
+    correct_answer = QUESTIONS[question]
     await message.answer(correct_answer_message(correct_answer))
     await send_new_question(message, state)
 

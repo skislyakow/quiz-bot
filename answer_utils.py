@@ -3,7 +3,7 @@ import re
 import pymorphy3  # type: ignore[import-untyped]
 
 
-morph = pymorphy3.MorphAnalyzer()
+morph_analyzer = pymorphy3.MorphAnalyzer()
 
 
 def normalize_answer(text: str) -> str:
@@ -21,7 +21,9 @@ def normalize_answer(text: str) -> str:
     lemmatized_tokens = []
     for token in tokens:
         if re.search(r"[a-zа-яё]", token, flags=re.I):
-            lemmatized_tokens.append(morph.parse(token)[0].normal_form)
+            lemmatized_tokens.append(
+                morph_analyzer.parse(token)[0].normal_form
+            )
         else:
             lemmatized_tokens.append(token)
     return " ".join(lemmatized_tokens)

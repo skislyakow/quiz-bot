@@ -43,7 +43,7 @@ async def main():
         raise ValueError("VK_GROUP_TOKEN не задан в .env")
 
     bot = Bot(token=token)
-    kb = (
+    keyboard = (
         Keyboard(inline=False)
         .add(Text("Новый вопрос"))
         .row()
@@ -58,7 +58,7 @@ async def main():
         await redis_client.set(
             vk_key(message.peer_id), question, ex=QUESTION_TTL
         )
-        await message.answer(question, keyboard=kb)
+        await message.answer(question, keyboard=keyboard)
 
     @bot.on.message(text="Сдаться")
     async def surrender(message):
@@ -66,7 +66,7 @@ async def main():
         if question is None:
             return await message.answer(
                 NO_ACTIVE_QUESTION,
-                keyboard=kb,
+                keyboard=keyboard,
             )
         await message.answer(correct_answer_message(QUESTIONS[question]))
         await redis_client.delete(vk_key(message.peer_id))
@@ -74,22 +74,24 @@ async def main():
         await redis_client.set(
             vk_key(message.peer_id), next_question, ex=QUESTION_TTL
         )
-        await message.answer(next_question, keyboard=kb)
+        await message.answer(next_question, keyboard=keyboard)
 
     @bot.on.message(text="Мой счёт")
     async def score(message):
-        await message.answer(SCORE_ZERO, keyboard=kb)
+        await message.answer(SCORE_ZERO, keyboard=keyboard)
 
     @bot.on.message()
     async def attempt(message):
         question = await get_active_question(message.peer_id)
+        if not message.text:
+            return
         if question is None:
             return await message.answer(
                 GREETING_NO_QUESTION,
-                keyboard=kb,
+                keyboard=keyboard,
             )
         is_correct, text = evaluate_answer(message.text, QUESTIONS[question])
-        await message.answer(text, keyboard=kb)
+        await message.answer(text, keyboard=keyboard)
         if is_correct:
             await redis_client.delete(vk_key(message.peer_id))
 
