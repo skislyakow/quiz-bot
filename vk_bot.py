@@ -85,11 +85,9 @@ async def main():
                 NO_ACTIVE_QUESTION,
                 keyboard=keyboard,
             )
-        answer_text = correct_answer_message(questions[question])
-        comment = comments.get(question)
-        if comment:
-            answer_text = f"{answer_text}\n\n{explanation_message(comment)}"
-        await message.answer(answer_text, keyboard=keyboard)
+        await message.answer(
+            correct_answer_message(questions[question]), keyboard=keyboard
+        )
         await redis_client.delete(vk_key(message.peer_id))
         await redis_client.delete(vk_hint_key(message.peer_id))
         next_question = random_question()

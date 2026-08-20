@@ -87,12 +87,7 @@ async def main():
         if question is None:
             await message.answer(NO_ACTIVE_QUESTION)
             return
-        correct_answer = questions[question]
-        reply_text = correct_answer_message(correct_answer)
-        comment = comments.get(question)
-        if comment:
-            reply_text = f"{reply_text}\n\n{explanation_message(comment)}"
-        await message.answer(reply_text)
+        await message.answer(correct_answer_message(questions[question]))
         await send_new_question(message, state)
 
     @router.message(F.text == "Мой счёт")
