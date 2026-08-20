@@ -1,5 +1,5 @@
-aiogram
-python-dotenv
-redis
-pymorphy3
-vkbottle
+aiogram==3.30.0
+python-dotenv==1.2.2
+redis==8.1.0
+pymorphy3==2.0.6
+vkbottle==4.10.0
