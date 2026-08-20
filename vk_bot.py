@@ -1,5 +1,6 @@
 import asyncio
 import os
+import argparse
 
 from vkbottle.bot import Bot
 from vkbottle.tools import Keyboard, Text
@@ -16,7 +17,6 @@ from messages import (
 from questions import load_questions, random_question
 
 
-QUESTIONS = load_questions()
 QUESTION_TTL = 3600
 
 redis_client = create_redis_client(decode_responses=True)
@@ -36,6 +36,16 @@ async def get_active_question(peer_id: int) -> str | None:
 
 
 async def main():
+    parser = argparse.ArgumentParser(description="VK quiz bot")
+    parser.add_argument(
+        "--questions-dir",
+        default="quiz-questions",
+        help="Папка с файлами вопросов (*.txt, KOI8-R)",
+    )
+    args = parser.parse_args()
+
+    questions = load_questions(args.questions_dir)
+
     load_dotenv()
     token = os.getenv("VK_GROUP_TOKEN")
 
@@ -68,7 +78,7 @@ async def main():
                 NO_ACTIVE_QUESTION,
                 keyboard=keyboard,
             )
-        await message.answer(correct_answer_message(QUESTIONS[question]))
+        await message.answer(correct_answer_message(questions[question]))
         await redis_client.delete(vk_key(message.peer_id))
         next_question = random_question()
         await redis_client.set(
@@ -90,7 +100,7 @@ async def main():
                 GREETING_NO_QUESTION,
                 keyboard=keyboard,
             )
-        is_correct, text = evaluate_answer(message.text, QUESTIONS[question])
+        is_correct, text = evaluate_answer(message.text, questions[question])
         await message.answer(text, keyboard=keyboard)
         if is_correct:
             await redis_client.delete(vk_key(message.peer_id))

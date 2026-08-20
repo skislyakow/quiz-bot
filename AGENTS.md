@@ -40,7 +40,7 @@ Telegram- и VK-викторины (aiogram 3.30 + vkbottle), курсовая �
 - `random_question()` возвращает случайный вопрос из кэшированного списка ключей — НЕ вызывать `random.choice(list(QUESTIONS))` (это O(n) на 302k ключей, ~18 мс вместо ~0.001 мс).
 
 ## Соглашения `telegram_bot.py`
-- `redis_client` и `QUESTIONS` — синглтоны уровня модуля; соединение не поднимать в хендлерах.
+- `redis_client` — синглтон уровня модуля; соединение не поднимать в хендлерах. `QUESTIONS` загружается в `main()` через `load_questions(args.questions_dir)` (флаг `--questions-dir`), не модульный синглтон.
 - Правило курса: `load_dotenv()` остаётся внутри `main()`; на уровне модуля env не читать — этим занимается `db.py`.
 - aiogram 3.30 удалил фильтр `Text` → магические фильтры: `from aiogram import F`, `F.text == "..."`.
 - Порядок хендлеров: `CommandStart` и конкретные `F.text == ...` раньше; catch-all `@router.message()` (проверка ответа) — последним.

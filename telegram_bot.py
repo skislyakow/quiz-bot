@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import os
 
@@ -23,8 +24,6 @@ from messages import (
 from questions import load_questions, random_question
 
 
-QUESTIONS = load_questions()
-
 redis_client = create_redis_client()
 router = Router()
 
@@ -44,64 +43,16 @@ class GameState(StatesGroup):
     answering = State()
 
 
-async def send_new_question(message: Message, state: FSMContext) -> None:
-    question = random_question()
-    await state.update_data(question=question)
-    await state.set_state(GameState.answering)
-    await message.answer(question)
-
-
-@router.message(CommandStart())
-async def handle_start(message: Message, state: FSMContext):
-    await state.set_state(GameState.waiting_for_question)
-    await message.answer(GREETING_NO_QUESTION, reply_markup=menu)
-
-
-@router.message(F.text == "Новый вопрос")
-async def handle_new_question_request(message: Message, state: FSMContext):
-    await send_new_question(message, state)
-
-
-@router.message(F.text == "Сдаться")
-async def handle_surrender(message: Message, state: FSMContext):
-    data = await state.get_data()
-    question = data.get("question")
-    if question is None:
-        await message.answer(NO_ACTIVE_QUESTION)
-        return
-    correct_answer = QUESTIONS[question]
-    await message.answer(correct_answer_message(correct_answer))
-    await send_new_question(message, state)
-
-
-@router.message(F.text == "Мой счёт")
-async def handle_score(message: Message):
-    await message.answer(SCORE_ZERO)
-
-
-@router.message(GameState.answering)
-async def handle_solution_attempt(message: Message, state: FSMContext):
-    if not message.text:
-        return
-    data = await state.get_data()
-    question = data.get("question")
-    correct_answer = QUESTIONS.get(question) if question is not None else None
-    if correct_answer is None:
-        await message.answer(UNKNOWN_QUESTION)
-        await state.set_state(GameState.waiting_for_question)
-        return
-    is_correct, text = evaluate_answer(message.text, correct_answer)
-    await message.answer(text)
-    if is_correct:
-        await state.set_state(GameState.waiting_for_question)
-
-
-@router.message(GameState.waiting_for_question)
-async def handle_waiting(message: Message):
-    await message.answer(NO_ACTIVE_QUESTION)
-
-
 async def main():
+    parser = argparse.ArgumentParser(description="Telegram quiz bot")
+    parser.add_argument(
+        "--questions-dir",
+        default="quiz-questions",
+        help="Папка с файлами вопросов (*.txt, KOI8-R)",
+    )
+    args = parser.parse_args()
+    questions = load_questions(args.questions_dir)
+
     load_dotenv()
 
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -111,6 +62,56 @@ async def main():
     bot = Bot(token=token)
     dp = Dispatcher(storage=RedisStorage(redis_client))
     dp.include_router(router)
+
+    async def send_new_question(message: Message, state: FSMContext) -> None:
+        question = random_question()
+        await state.update_data(question=question)
+        await state.set_state(GameState.answering)
+        await message.answer(question)
+
+    @router.message(CommandStart())
+    async def handle_start(message: Message, state: FSMContext):
+        await state.set_state(GameState.waiting_for_question)
+        await message.answer(GREETING_NO_QUESTION, reply_markup=menu)
+
+    @router.message(F.text == "Новый вопрос")
+    async def handle_new_question_request(message: Message, state: FSMContext):
+        await send_new_question(message, state)
+
+    @router.message(F.text == "Сдаться")
+    async def handle_surrender(message: Message, state: FSMContext):
+        data = await state.get_data()
+        question = data.get("question")
+        if question is None:
+            await message.answer(NO_ACTIVE_QUESTION)
+            return
+        correct_answer = questions[question]
+        await message.answer(correct_answer_message(correct_answer))
+        await send_new_question(message, state)
+
+    @router.message(F.text == "Мой счёт")
+    async def handle_score(message: Message):
+        await message.answer(SCORE_ZERO)
+
+    @router.message(GameState.answering)
+    async def handle_solution_attempt(message: Message, state: FSMContext):
+        if not message.text:
+            return
+        data = await state.get_data()
+        question = data.get("question")
+        correct_answer = questions.get(question) if question is not None else None
+        if correct_answer is None:
+            await message.answer(UNKNOWN_QUESTION)
+            await state.set_state(GameState.waiting_for_question)
+            return
+        is_correct, text = evaluate_answer(message.text, correct_answer)
+        await message.answer(text)
+        if is_correct:
+            await state.set_state(GameState.waiting_for_question)
+
+    @router.message(GameState.waiting_for_question)
+    async def handle_waiting(message: Message):
+        await message.answer(NO_ACTIVE_QUESTION)
 
     await dp.start_polling(bot)
 

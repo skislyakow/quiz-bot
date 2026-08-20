@@ -67,7 +67,7 @@ Telegram- и VK-боты — **два независимых процесса** 
    pip install -r requirements.txt
    ```
 
-3. (Опционально) Положить файлы базы вопросов в папку `quiz-questions/` (кодировка KOI8-R, `*.txt`). Без неё бот запустится, но будет молчать — `QUESTIONS` будет пустым. Первый запуск парсит базу и пишет кэш `.questions_cache.pkl` (~10–11 с); дальше — доли секунды.
+3. (Опционально) Положить файлы базы вопросов в папку `quiz-questions/` (кодировка KOI8-R, `*.txt`). Без неё бот запустится, но будет молчать — `QUESTIONS` будет пустым. Первый запуск парсит базу и пишет кэш `.questions_cache.pkl` (~10–11 с); дальше — доли секунды. Папку можно переопределить флагом `--questions-dir` (см. «Полезные команды»).
 
 ## Запуск
 
@@ -122,6 +122,17 @@ python -c "from questions import load_questions; print(len(load_questions()))"  
 wsl redis-cli --scan --pattern '*quiz:*'
 wsl redis-cli GET vk_quiz:<user_id>
 ```
+
+### Выбор папки с вопросами (`--questions-dir`)
+
+По умолчанию боты берут вопросы из `quiz-questions/`. Чтобы указать другую папку, передайте флаг при запуске (путь относительный к текущей директории — запускайте из корня репо):
+
+```bash
+.venv\Scripts\python.exe telegram_bot.py --questions-dir my-questions
+.venv\Scripts\python.exe vk_bot.py --questions-dir my-questions
+```
+
+Кэш `.questions_cache.pkl` ключуется по отпечатку файлов папки, поэтому смена папки автоматически инвалидирует кэш — первый запуск с новой папкой займёт ~10–11 с на парсинг.
 
 ## Файлы проекта
 
