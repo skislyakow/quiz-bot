@@ -6,3 +6,7 @@ SCORE_ZERO = "Ваш счёт: 0"
 
 def correct_answer_message(answer: str) -> str:
     return f"Правильный ответ: {answer}"
+
+
+def explanation_message(text: str) -> str:
+    return f"Подсказка: {text}"

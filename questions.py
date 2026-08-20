@@ -6,6 +6,8 @@ import re
 
 _CACHE_FILE = ".questions_cache.pkl"
 _question_keys: list[str] = []
+_questions: dict[str, str] = {}
+_comments: dict[str, str] = {}
 
 
 def _strip_handout(text: str) -> str:
@@ -26,8 +28,9 @@ def _sources_fingerprint(folder: str) -> str | None:
     return "|".join(parts)
 
 
-def _parse_questions(folder: str) -> dict[str, str]:
-    questions = {}
+def _parse_questions(folder: str) -> tuple[dict[str, str], dict[str, str]]:
+    questions: dict[str, str] = {}
+    comments: dict[str, str] = {}
     for path in pathlib.Path(folder).glob("*.txt"):
         with open(path, encoding="koi8-r") as f:
             text = f.read()
@@ -39,16 +42,20 @@ def _parse_questions(folder: str) -> dict[str, str]:
                 current_question = _strip_handout(section.split("\n", 1)[1])
             elif label.lower() == "ответ" and current_question:
                 questions[current_question] = section.split("\n", 1)[1].strip()
-    return questions
+            elif label.lower().startswith("комментарий") and current_question:
+                comments[current_question] = section.split("\n", 1)[1].strip()
+    return questions, comments
 
 
-def _load_from_cache(folder: str) -> dict[str, str] | None:
+def _load_from_cache(
+    folder: str,
+) -> tuple[dict[str, str], dict[str, str]] | None:
     cache_path = pathlib.Path(_CACHE_FILE)
     if not cache_path.exists():
         return None
     try:
         with open(cache_path, "rb") as f:
-            fingerprint, questions = pickle.load(f)
+            fingerprint, questions, comments = pickle.load(f)
     except (
         OSError,
         pickle.UnpicklingError,
@@ -62,10 +69,12 @@ def _load_from_cache(folder: str) -> dict[str, str] | None:
         return None
     if fingerprint != _sources_fingerprint(folder):
         return None
-    return questions
+    return questions, comments
 
 
-def _save_to_cache(folder: str, questions: dict[str, str]) -> None:
+def _save_to_cache(
+    folder: str, questions: dict[str, str], comments: dict[str, str]
+) -> None:
     fingerprint = _sources_fingerprint(folder)
     if fingerprint is None:
         return
@@ -73,20 +82,37 @@ def _save_to_cache(folder: str, questions: dict[str, str]) -> None:
     try:
         with open(tmp_path, "wb") as f:
             pickle.dump(
-                (fingerprint, questions), f, protocol=pickle.HIGHEST_PROTOCOL
+                (fingerprint, questions, comments),
+                f,
+                protocol=pickle.HIGHEST_PROTOCOL,
             )
         tmp_path.replace(pathlib.Path(_CACHE_FILE))
     except OSError:
         tmp_path.unlink(missing_ok=True)
 
 
+def _ensure_loaded(folder: str = "quiz-questions") -> None:
+    cached_data = _load_from_cache(folder)
+    if cached_data is None:
+        questions, comments = _parse_questions(folder)
+        _save_to_cache(folder, questions, comments)
+    else:
+        questions, comments = cached_data
+        _questions.clear()
+        _questions.update(questions)
+        _comments.clear()
+        _comments.update(comments)
+        _question_keys[:] = list(_questions)
+
+
 def load_questions(folder="quiz-questions") -> dict[str, str]:
-    questions = _load_from_cache(folder)
-    if questions is None:
-        questions = _parse_questions(folder)
-        _save_to_cache(folder, questions)
-    _question_keys[:] = list(questions)
-    return questions
+    _ensure_loaded(folder)
+    return _questions
+
+
+def load_comments(folder="quiz-questions") -> dict[str, str]:
+    _ensure_loaded(folder)
+    return _comments
 
 
 def random_question() -> str:

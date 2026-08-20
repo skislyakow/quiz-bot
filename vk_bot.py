@@ -13,8 +13,9 @@ from messages import (
     GREETING_NO_QUESTION,
     SCORE_ZERO,
     correct_answer_message,
+    explanation_message,
 )
-from questions import load_questions, random_question
+from questions import load_questions, random_question, load_comments
 
 
 QUESTION_TTL = 3600
@@ -24,6 +25,10 @@ redis_client = create_redis_client(decode_responses=True)
 
 def vk_key(uid: int) -> str:
     return f"vk_quiz:{uid}"
+
+
+def vk_hint_key(uid: int) -> str:
+    return f"vk_hint:{uid}"
 
 
 async def get_active_question(peer_id: int) -> str | None:
@@ -45,6 +50,7 @@ async def main():
     args = parser.parse_args()
 
     questions = load_questions(args.questions_dir)
+    comments = load_comments(args.questions_dir)
 
     load_dotenv()
     token = os.getenv("VK_GROUP_TOKEN")
@@ -68,6 +74,7 @@ async def main():
         await redis_client.set(
             vk_key(message.peer_id), question, ex=QUESTION_TTL
         )
+        await redis_client.delete(vk_hint_key(message.peer_id))
         await message.answer(question, keyboard=keyboard)
 
     @bot.on.message(text="Сдаться")
@@ -78,8 +85,13 @@ async def main():
                 NO_ACTIVE_QUESTION,
                 keyboard=keyboard,
             )
-        await message.answer(correct_answer_message(questions[question]))
+        answer_text = correct_answer_message(questions[question])
+        comment = comments.get(question)
+        if comment:
+            answer_text = f"{answer_text}\n\n{explanation_message(comment)}"
+        await message.answer(answer_text, keyboard=keyboard)
         await redis_client.delete(vk_key(message.peer_id))
+        await redis_client.delete(vk_hint_key(message.peer_id))
         next_question = random_question()
         await redis_client.set(
             vk_key(message.peer_id), next_question, ex=QUESTION_TTL
@@ -100,10 +112,22 @@ async def main():
                 GREETING_NO_QUESTION,
                 keyboard=keyboard,
             )
-        is_correct, text = evaluate_answer(message.text, questions[question])
-        await message.answer(text, keyboard=keyboard)
+        is_correct, feedback = evaluate_answer(
+            message.text, questions[question]
+        )
         if is_correct:
             await redis_client.delete(vk_key(message.peer_id))
+            await redis_client.delete(vk_hint_key(message.peer_id))
+            await message.answer(feedback, keyboard=keyboard)
+        else:
+            if await redis_client.get(vk_hint_key(message.peer_id)) is None:
+                comment = comments.get(question)
+                if comment:
+                    feedback = f"{feedback}\n\n{explanation_message(comment)}"
+                await redis_client.set(
+                    vk_hint_key(message.peer_id), "1", ex=QUESTION_TTL
+                )
+            await message.answer(feedback, keyboard=keyboard)
 
     await bot.run_polling()
 

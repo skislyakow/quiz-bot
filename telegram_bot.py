@@ -20,8 +20,9 @@ from messages import (
     GREETING_NO_QUESTION,
     SCORE_ZERO,
     correct_answer_message,
+    explanation_message,
 )
-from questions import load_questions, random_question
+from questions import load_questions, random_question, load_comments
 
 
 redis_client = create_redis_client()
@@ -52,6 +53,7 @@ async def main():
     )
     args = parser.parse_args()
     questions = load_questions(args.questions_dir)
+    comments = load_comments(args.questions_dir)
 
     load_dotenv()
 
@@ -65,7 +67,7 @@ async def main():
 
     async def send_new_question(message: Message, state: FSMContext) -> None:
         question = random_question()
-        await state.update_data(question=question)
+        await state.update_data(question=question, hinted=False)
         await state.set_state(GameState.answering)
         await message.answer(question)
 
@@ -80,13 +82,17 @@ async def main():
 
     @router.message(F.text == "Сдаться")
     async def handle_surrender(message: Message, state: FSMContext):
-        data = await state.get_data()
-        question = data.get("question")
+        state_data = await state.get_data()
+        question = state_data.get("question")
         if question is None:
             await message.answer(NO_ACTIVE_QUESTION)
             return
         correct_answer = questions[question]
-        await message.answer(correct_answer_message(correct_answer))
+        reply_text = correct_answer_message(correct_answer)
+        comment = comments.get(question)
+        if comment:
+            reply_text = f"{reply_text}\n\n{explanation_message(comment)}"
+        await message.answer(reply_text)
         await send_new_question(message, state)
 
     @router.message(F.text == "Мой счёт")
@@ -97,17 +103,31 @@ async def main():
     async def handle_solution_attempt(message: Message, state: FSMContext):
         if not message.text:
             return
-        data = await state.get_data()
-        question = data.get("question")
-        correct_answer = questions.get(question) if question is not None else None
+        state_data = await state.get_data()
+        raw_question = state_data.get("question")
+        if raw_question is None:
+            await message.answer(UNKNOWN_QUESTION)
+            await state.set_state(GameState.waiting_for_question)
+            return
+        question: str = raw_question
+        correct_answer = (
+            questions.get(question) if question is not None else None
+        )
         if correct_answer is None:
             await message.answer(UNKNOWN_QUESTION)
             await state.set_state(GameState.waiting_for_question)
             return
-        is_correct, text = evaluate_answer(message.text, correct_answer)
-        await message.answer(text)
+        is_correct, feedback = evaluate_answer(message.text, correct_answer)
         if is_correct:
+            await message.answer(feedback)
             await state.set_state(GameState.waiting_for_question)
+        else:
+            if not state_data.get("hinted"):
+                comment = comments.get(question)
+                if comment:
+                    feedback = f"{feedback}\n\n{explanation_message(comment)}"
+                await state.update_data(hinted=True)
+            await message.answer(feedback)
 
     @router.message(GameState.waiting_for_question)
     async def handle_waiting(message: Message):
